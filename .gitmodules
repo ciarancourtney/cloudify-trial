@@ -1,0 +1,4 @@
+[submodule "cloudify-manager-blueprints"]
+	path = cloudify-manager-blueprints
+	url = https://github.com/cloudify-cosmo/cloudify-manager-blueprints.git
+	branch = 3.2.1-build
