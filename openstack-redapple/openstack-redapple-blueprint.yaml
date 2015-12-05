@@ -1,0 +1,73 @@
+tosca_definitions_version: cloudify_dsl_1_0
+
+imports:
+  - http://www.getcloudify.org/spec/cloudify/3.2.1/types.yaml
+  - http://www.getcloudify.org/spec/openstack-plugin/1.2.1/plugin.yaml
+
+inputs:
+  image:
+    description: >
+      Image to be used when launching agent VM's
+  flavor:
+    description: >
+      Flavor of the agent VM's
+  agent_user:
+    description: >
+      User for connecting to agent VM's
+
+node_types:
+
+  redapple.nodes.RedappleApplicationModule:
+    derived_from: cloudify.nodes.ApplicationModule
+    properties:
+      port:
+        description: Web application port
+        type: integer
+      application_url:
+        description:
+        default: https://github.com/ciarancourtney/red-apple/archive/master.tar.gz
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        configure: bin/build.sh
+        start: python manage.py runserver 0.0.0.0:8000
+        stop: python manage.py stopserver 0.0.0.0:8000
+
+node_templates:
+
+  nodecellar:
+    type: redapple.nodes.RedappleApplicationModule
+    properties:
+      port: 8000
+
+  redapple_security_group:
+    type: cloudify.openstack.nodes.SecurityGroup
+    properties:
+      security_group:
+        name: redapple_security_group
+      rules:
+        - remote_ip_prefix: 0.0.0.0/0
+          port: { get_property: [redapple, port] }
+        - remote_ip_prefix: 0.0.0.0/0
+          port: 22
+
+  redapple_floatingip:
+      type: cloudify.openstack.nodes.FloatingIP
+
+  redapple_vm:
+    type: cloudify.openstack.nodes.Server
+    properties:
+      cloudify_agent:
+        user: { get_input: agent_user }
+      server:
+        image: { get_input: image }
+        flavor: { get_input: flavor }
+    relationships:
+      - target: redapple_security_group
+        type: cloudify.openstack.server_connected_to_security_group
+
+outputs:
+  endpoint:
+    description: Web application endpoint
+    value:
+      ip_address: { get_attribute: [redapple_floatingip, floating_ip_address ] }
+      port: { get_property: [redapple, port] }
